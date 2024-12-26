@@ -40,7 +40,13 @@ def make_api_request(endpoint, params=None):
 
 def get_dataset_stats(data):
     if not data or 'result' not in data or 'items' not in data['result']:
-        return {}
+        return {
+            'total_datasets': 0,
+            'unique_formats': 0,
+            'unique_publishers': 0,
+            'common_keywords': {},
+            'date_range': 'N/A'
+        }
     
     items = data['result']['items']
     formats = []
@@ -49,30 +55,34 @@ def get_dataset_stats(data):
     dates = []
     
     for item in items:
-        if 'distribution' in item:
-            for dist in item['distribution']:
-                if isinstance(dist.get('format', ''), str):
-                    formats.append(dist['format'])
+        # Procesar distribuciones y formatos
+        distributions = item.get('distribution', [])
+        if distributions:
+            if isinstance(distributions, list):
+                for dist in distributions:
+                    if isinstance(dist, dict) and 'format' in dist:
+                        formats.append(str(dist['format']))
+            elif isinstance(distributions, str):
+                formats.append(distributions)
         
+        # Procesar resto de campos
         if 'publisher' in item:
             publishers.append(str(item['publisher']))
         
-        if 'keyword' in item:
-            keywords.extend([k.get('_value', '') for k in item['keyword'] if k.get('_value')])
+        if 'keyword' in item and isinstance(item['keyword'], list):
+            keywords.extend([k.get('_value', '') for k in item['keyword'] if isinstance(k, dict)])
         
         if 'issued' in item:
             try:
                 dates.append(format_date(item['issued']))
             except:
-                continue
-    
-    keyword_counts = Counter(keywords).most_common(5)
+                pass
     
     return {
         'total_datasets': len(items),
-        'unique_formats': len(set(formats)) if formats else 0,
+        'unique_formats': len(set(formats)),
         'unique_publishers': len(set(publishers)) if publishers else 0,
-        'common_keywords': {k: v for k, v in keyword_counts},
+        'common_keywords': dict(Counter(keywords).most_common(5)),
         'date_range': f"{min(dates, default='N/A')} - {max(dates, default='N/A')}"
     }
 
